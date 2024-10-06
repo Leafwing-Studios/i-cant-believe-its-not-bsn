@@ -87,6 +87,86 @@ impl<B: Bundle> Command for WithChildCommand<B> {
     }
 }
 
+/// A component that, when added to an entity, will add a child entity with the given bundle.
+///
+/// This component will be removed from the entity, as its data is moved into the child entity.
+///
+/// Under the hood, this is done using component lifecycle hooks.
+///
+/// ```rust
+/// use bevy_ecs::prelude::*;
+/// use i_cant_believe_its_not_bsn::WithChild;
+///
+/// #[derive(Component, PartialEq, Debug)]
+/// struct A;
+///
+/// #[derive(Component, PartialEq, Debug)]
+/// struct B(u8);
+///
+/// fn spawn_hierarchy(mut commands: Commands) {
+///   commands.spawn(
+///    (A, // Parent
+///     WithChild( // This component is removed on spawn
+///       (A, B(3)) // Child
+///     )
+///   ));
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct WithChildren<B: Bundle>(pub B);
+
+impl<B: Bundle> Component for WithChildren<B> {
+    /// This is a sparse set component as it's only ever added and removed, never iterated over.
+    const STORAGE_TYPE: StorageType = StorageType::SparseSet;
+
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        hooks.on_add(with_children_hook::<B>);
+    }
+}
+
+/// A hook that runs whenever [`WithChildren`] is added to an entity.
+///
+/// Generates a [`ReplaceWithChildCommand`].
+fn with_children_hook<'w, B: Bundle>(
+    mut world: DeferredWorld<'w>,
+    entity: Entity,
+    _component_id: ComponentId,
+) {
+    // Component hooks can't perform structural changes, so we need to rely on commands.
+    world.commands().add(WithChildrenCommand {
+        parent_entity: entity,
+        _phantom: PhantomData::<B>,
+    });
+}
+
+struct WithChildrenCommand<B> {
+    parent_entity: Entity,
+    _phantom: PhantomData<B>,
+}
+
+impl<B: Bundle> Command for WithChildrenCommand<B> {
+    fn apply(self, world: &mut World) {
+        let Some(mut entity_mut) = world.get_entity_mut(self.parent_entity) else {
+            #[cfg(debug_assertions)]
+            panic!("Parent entity not found");
+
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+
+        let Some(with_child_component) = entity_mut.take::<WithChild<B>>() else {
+            #[cfg(debug_assertions)]
+            panic!("WithChild component not found");
+
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+
+        let child_entity = world.spawn(with_child_component.0).id();
+        world.entity_mut(self.parent_entity).add_child(child_entity);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy_ecs::system::RunSystemOnce;
