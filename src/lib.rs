@@ -203,7 +203,7 @@ impl<
         };
 
         let Some(with_children_component) =
-            entity_mut.take::<WithChildren<(B1, B2, B3, B4, B5, B6, B7, B8)>>()
+            entity_mut.take::<WithChildren<B1, B2, B3, B4, B5, B6, B7, B8>>()
         else {
             #[cfg(debug_assertions)]
             panic!("WithChildren component not found");
