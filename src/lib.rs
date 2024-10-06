@@ -104,7 +104,7 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 ///
 /// Just like when using [`Commands::spawn_batch`], any iterator that returns a bundle of the same type can be used.
 ///
-/// Working with vectors and other collections is straightforward:
+/// Working with vectors, arrays and other collections is straightforward:
 ///
 /// ```rust
 /// use bevy_ecs::prelude::*;
@@ -116,7 +116,7 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 /// fn spawn_hierarchy_with_vector(mut commands: Commands) {
 ///   commands.spawn(
 ///    (Name("Zeus"),
-///     WithChildren(vec![Name("Athena"), Name("Apollo"), Name("Hermes")])
+///     WithChildren([Name("Athena"), Name("Apollo"), Name("Hermes")])
 ///   ));
 /// }
 ///```
