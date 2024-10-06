@@ -12,8 +12,28 @@ use bevy_hierarchy::BuildWorldChildren;
 /// This component will be removed from the entity, as its data is moved into the child entity.
 ///
 /// Under the hood, this is done using component lifecycle hooks.
+///
+/// ```rust
+/// use bevy_ecs::prelude::*;
+/// use i_cant_believe_its_not_bsn::WithChild;
+///
+/// #[derive(Component, PartialEq, Debug)]
+/// struct A;
+///
+/// #[derive(Component, PartialEq, Debug)]
+/// struct B(u8);
+///
+/// fn spawn_hierarchy(mut commands: Commands) {
+///   commands.spawn(
+///    (A, // Parent
+///     WithChild( // This component is removed on spawn
+///       (A, B(3)) // Child
+///     )
+///   ));
+/// }
+/// ```
 #[derive(Debug, Clone)]
-pub struct WithChild<B: Bundle>(B);
+pub struct WithChild<B: Bundle>(pub B);
 
 impl<B: Bundle> Component for WithChild<B> {
     /// This is a sparse set component as it's only ever added and removed, never iterated over.
