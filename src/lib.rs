@@ -109,11 +109,6 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 ///
 /// # Example
 ///
-/// While the fields of this type *are* public, you'll probably have more fun using the supplied builder methods.
-/// Behold, the power that we have unleashed!
-///
-/// Just don't think too hard about how this works.
-///
 /// ```rust
 /// todo!();
 /// ```
@@ -329,6 +324,39 @@ mod tests {
         let child_entity = children[0];
         assert_eq!(world.get::<A>(child_entity), Some(&A));
         assert_eq!(world.get::<B>(child_entity), Some(&B(3)));
+    }
+
+    #[test]
+    fn with_children() {
+        let mut world = World::default();
+
+        let parent = world
+            .spawn(WithChildren {
+                b1: A,
+                b2: B(2),
+                b3: (A, B(3)),
+                b4: (),
+                b5: (),
+                b6: (),
+                b7: (),
+                b8: (),
+            })
+            .id();
+        // FIXME: this should not be needed!
+        world.flush();
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 3);
+
+        let child_entity_0 = children[0];
+        assert_eq!(world.get::<A>(child_entity_0), Some(&A));
+
+        let child_entity_1 = children[1];
+        assert_eq!(world.get::<B>(child_entity_1), Some(&B(2)));
+
+        let child_entity_2 = children[2];
+        assert_eq!(world.get::<A>(child_entity_2), Some(&A));
+        assert_eq!(world.get::<B>(child_entity_2), Some(&B(3)));
     }
 
     #[test]
