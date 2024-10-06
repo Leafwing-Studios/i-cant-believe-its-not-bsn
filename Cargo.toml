@@ -4,6 +4,7 @@ authors = ["Alice I. Cecile"]
 version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/Leafwing-Studios/i-cant-believe-its-not-bsn"
+license = "MIT OR Apache-2.0"
 description = "Tools for spawning entity hierarchies in Bevy"
 tags = ["bevy", "ecs"]
 
