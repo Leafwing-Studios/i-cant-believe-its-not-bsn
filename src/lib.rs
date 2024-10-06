@@ -16,6 +16,7 @@ use bevy_hierarchy::BuildWorldChildren;
 pub struct WithChild<B: Bundle>(B);
 
 impl<B: Bundle> Component for WithChild<B> {
+    /// This is a sparse set component as it's only ever added and removed, never iterated over.
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
 
     fn register_component_hooks(hooks: &mut ComponentHooks) {
@@ -45,13 +46,115 @@ struct WithChildCommand<B> {
 
 impl<B: Bundle> Command for WithChildCommand<B> {
     fn apply(self, world: &mut World) {
-        let Some(with_child_component) =
-            world.entity_mut(self.parent_entity).take::<WithChild<B>>()
-        else {
+        let Some(mut entity_mut) = world.get_entity_mut(self.parent_entity) else {
+            #[cfg(debug_assertions)]
+            panic!("Parent entity not found");
+
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+
+        let Some(with_child_component) = entity_mut.take::<WithChild<B>>() else {
+            #[cfg(debug_assertions)]
+            panic!("WithChild component not found");
+
+            #[cfg(not(debug_assertions))]
             return;
         };
 
         let child_entity = world.spawn(with_child_component.0).id();
         world.entity_mut(self.parent_entity).add_child(child_entity);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_hierarchy::Children;
+
+    use super::*;
+
+    #[derive(Component, PartialEq, Debug)]
+    struct A;
+
+    #[derive(Component, PartialEq, Debug)]
+    struct B(u8);
+
+    #[derive(Bundle)]
+    struct ABBundle {
+        a: A,
+        b: B,
+    }
+
+    #[derive(Bundle)]
+    struct HierarchicalBundle {
+        a: A,
+        child: WithChild<ABBundle>,
+    }
+
+    #[test]
+    fn with_child() {
+        let mut world = World::default();
+
+        let parent = world.spawn(WithChild((A, B(3)))).id();
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(!world.entity(parent).contains::<WithChild<(A, B)>>());
+        assert!(!world.entity(parent).contains::<A>());
+        assert!(!world.entity(parent).contains::<B>());
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 1);
+
+        let child_entity = children[0];
+        assert_eq!(world.get::<A>(child_entity), Some(&A));
+        assert_eq!(world.get::<B>(child_entity), Some(&B(3)));
+    }
+
+    #[test]
+    fn hierarchical_bundle() {
+        let mut world = World::default();
+
+        let parent = world
+            .spawn(HierarchicalBundle {
+                a: A,
+                child: WithChild(ABBundle { a: A, b: B(17) }),
+            })
+            .id();
+
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(!world.entity(parent).contains::<WithChild<ABBundle>>());
+        assert!(world.entity(parent).contains::<A>());
+        assert!(!world.entity(parent).contains::<B>());
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 1);
+
+        let child_entity = children[0];
+        assert_eq!(world.get::<A>(child_entity), Some(&A));
+        assert_eq!(world.get::<B>(child_entity), Some(&B(17)));
+    }
+
+    #[test]
+    fn command_form() {
+        fn spawn_with_child(mut commands: Commands) -> Entity {
+            commands.spawn((A, WithChild(B(5)))).id()
+        }
+
+        let mut world = World::new();
+        let parent = world.run_system_once(spawn_with_child);
+
+        assert!(!world.entity(parent).contains::<WithChild<B>>());
+        assert!(world.entity(parent).contains::<A>());
+        assert!(!world.entity(parent).contains::<B>());
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 1);
+
+        let child_entity = children[0];
+        assert_eq!(world.get::<B>(child_entity), Some(&B(5)));
     }
 }
