@@ -1,0 +1,9 @@
+[package]
+name = "i-cant-believe-its-not-bsn"
+authors = ["Alice I. Cecile"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy_ecs = "0.14"
+bevy_hierarchy = "0.14"
