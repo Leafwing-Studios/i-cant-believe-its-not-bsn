@@ -50,8 +50,8 @@ impl<B: Bundle> Component for WithChild<B> {
 /// A hook that runs whenever [`WithChild`] is added to an entity.
 ///
 /// Generates a [`WithChildCommand`].
-fn with_child_hook<'w, B: Bundle>(
-    mut world: DeferredWorld<'w>,
+fn with_child_hook<B: Bundle>(
+    mut world: DeferredWorld<'_>,
     entity: Entity,
     _component_id: ComponentId,
 ) {
@@ -155,8 +155,8 @@ impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Component
 /// A hook that runs whenever [`WithChildren`] is added to an entity.
 ///
 /// Generates a [`WithChildrenCommand`].
-fn with_children_hook<'w, B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
-    mut world: DeferredWorld<'w>,
+fn with_children_hook<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
+    mut world: DeferredWorld<'_>,
     entity: Entity,
     _component_id: ComponentId,
 ) {
