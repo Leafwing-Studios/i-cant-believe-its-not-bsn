@@ -126,13 +126,16 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 /// use i_cant_believe_its_not_bsn::WithChildren;
 ///
 /// #[derive(Component)]
+/// struct A;
+///
+/// #[derive(Component)]
 /// struct ChildNumber(usize);
 ///
 /// fn spawn_hierarchy_with_generator(mut commands: Commands) {
 ///   commands.spawn(
-///    (A, // Parent
-///     WithChildren((0..3).map(|i| (ChildNumber(i))) // Children
-///   ));
+///    (A, // Component on parent
+///      WithChildren((0..3).map(|i| (ChildNumber(i)))) // Each child will have a ChildNumber component
+///    ));
 /// }
 ///```
 #[derive(Debug, Clone, Default)]
