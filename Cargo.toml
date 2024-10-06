@@ -8,5 +8,5 @@ description = "Tools for spawning entity hierarchies in Bevy"
 tags = ["bevy", "ecs"]
 
 [dependencies]
-bevy_ecs = "0.14"
-bevy_hierarchy = "0.14"
+bevy_ecs = { version = "0.14", default-features = false }
+bevy_hierarchy = { version = "0.14", default-features = false }
