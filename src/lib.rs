@@ -242,6 +242,44 @@ mod tests {
     }
 
     #[test]
+    fn with_children_vec() {
+        let mut world = World::default();
+
+        let parent = world.spawn(WithChildren(vec![B(0), B(1), B(2)])).id();
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(!world.entity(parent).contains::<WithChildren<B, Vec<B>>>());
+        assert!(!world.entity(parent).contains::<B>());
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 3);
+
+        for (i, child_entity) in children.iter().enumerate() {
+            assert_eq!(world.get::<B>(*child_entity), Some(&B(i as u8)));
+        }
+    }
+
+    #[test]
+    fn with_child_closure() {
+        let mut world = World::default();
+
+        let parent = world.spawn(WithChildren((0..7).map(|i| B(i as u8)))).id();
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(!world.entity(parent).contains::<WithChildren<B, Vec<B>>>());
+        assert!(!world.entity(parent).contains::<B>());
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 7);
+
+        for (i, child_entity) in children.iter().enumerate() {
+            assert_eq!(world.get::<B>(*child_entity), Some(&B(i as u8)));
+        }
+    }
+
+    #[test]
     fn with_distinct_children() {
         let mut world = World::default();
 
@@ -263,6 +301,28 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(world.get::<B>(children[0]), Some(&B(1)));
         assert_eq!(world.get::<A>(children[1]), Some(&A));
+    }
+
+    #[test]
+    fn grandchildren() {
+        let mut world = World::default();
+
+        let parent = world.spawn(WithChild((A, WithChild((A, B(3)))))).id();
+        // FIXME: this should not be needed!
+        world.flush();
+
+        let children = world.get::<Children>(parent).unwrap();
+        assert_eq!(children.len(), 1);
+
+        let child_entity = children[0];
+        assert_eq!(world.get::<A>(child_entity), Some(&A));
+
+        let grandchildren = world.get::<Children>(child_entity).unwrap();
+        assert_eq!(grandchildren.len(), 1);
+
+        let grandchild_entity = grandchildren[0];
+        assert_eq!(world.get::<A>(grandchild_entity), Some(&A));
+        assert_eq!(world.get::<B>(grandchild_entity), Some(&B(3)));
     }
 
     #[test]
