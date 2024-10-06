@@ -10,7 +10,9 @@ use bevy_hierarchy::BuildWorldChildren;
 /// A component that, when added to an entity, will add a child entity with the given bundle.
 ///
 /// This component will be removed from the entity, as its data is moved into the child entity.
-/// See [`WithChildren`] for a version that supports adding multiple children.
+///
+/// You can add multiple children in this way, if and only if their bundle types are distinct.
+/// See [`WithChildren`] for a version that supports adding multiple children of the same type.
 ///
 /// Under the hood, this is done using component lifecycle hooks.
 ///
@@ -18,10 +20,10 @@ use bevy_hierarchy::BuildWorldChildren;
 /// use bevy_ecs::prelude::*;
 /// use i_cant_believe_its_not_bsn::WithChild;
 ///
-/// #[derive(Component, PartialEq, Debug)]
+/// #[derive(Component)]
 /// struct A;
 ///
-/// #[derive(Component, PartialEq, Debug)]
+/// #[derive(Component)]
 /// struct B(u8);
 ///
 /// fn spawn_hierarchy(mut commands: Commands) {
@@ -85,6 +87,112 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 
         let child_entity = world.spawn(with_child_component.0).id();
         world.entity_mut(self.parent_entity).add_child(child_entity);
+    }
+}
+
+/// A component that, when added to an entity, will add a child entity with the given bundle.
+///
+/// This component will be removed from the entity immediately upon being spawned,
+/// and the supplied iterator will be iterated to completion to generate the data needed for each child.
+/// See [`WithChild`] for a more convenient API when adding only one child (or multiple children with distinct bundle types).
+///
+/// Under the hood, this is done using component lifecycle hooks.
+///
+/// # Examples
+///
+/// Just like when using [`Commands::spawn_batch`], any iterator that returns a bundle of the same type can be used.
+///
+/// Working with vectors and other collections is straightforward:
+///
+/// ```rust
+/// use bevy_ecs::prelude::*;
+/// use i_cant_believe_its_not_bsn::WithChildren;
+///
+/// #[derive(Component)]
+/// struct Name(&'static str);
+///
+/// fn spawn_hierarchy_with_vector(mut commands: Commands) {
+///   commands.spawn(
+///    (Name("Zeus"),
+///     WithChildren(vec![Name("Athena"), Name("Apollo"), Name("Hermes")])
+///   ));
+/// }
+///```
+///
+/// However, generator-style iterators can also be used to dynamically vary the number and property of children:
+///
+/// ```rust
+/// use bevy_ecs::prelude::*;
+/// use i_cant_believe_its_not_bsn::WithChildren;
+///
+/// #[derive(Component)]
+/// struct ChildNumber(usize);
+///
+/// fn spawn_hierarchy_with_generator(mut commands: Commands) {
+///   commands.spawn(
+///    (A, // Parent
+///     WithChildren((0..3).map(|i| (ChildNumber(i))) // Children
+///   ));
+/// }
+///```
+#[derive(Debug, Clone, Default)]
+pub struct WithChildren<B: Bundle, I: IntoIterator<Item = B>>(pub I);
+
+impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Component
+    for WithChildren<B, I>
+{
+    /// This is a sparse set component as it's only ever added and removed, never iterated over.
+    const STORAGE_TYPE: StorageType = StorageType::SparseSet;
+
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        hooks.on_add(with_children_hook::<B, I>);
+    }
+}
+
+/// A hook that runs whenever [`WithChildren`] is added to an entity.
+///
+/// Generates a [`WithChildrenCommand`].
+fn with_children_hook<'w, B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
+    mut world: DeferredWorld<'w>,
+    entity: Entity,
+    _component_id: ComponentId,
+) {
+    // Component hooks can't perform structural changes, so we need to rely on commands.
+    world.commands().add(WithChildrenCommand {
+        parent_entity: entity,
+        _phantom: PhantomData::<(B, I)>,
+    });
+}
+
+struct WithChildrenCommand<B, I> {
+    parent_entity: Entity,
+    _phantom: PhantomData<(B, I)>,
+}
+
+impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Command
+    for WithChildrenCommand<B, I>
+{
+    fn apply(self, world: &mut World) {
+        let Some(mut entity_mut) = world.get_entity_mut(self.parent_entity) else {
+            #[cfg(debug_assertions)]
+            panic!("Parent entity not found");
+
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+
+        let Some(with_children_component) = entity_mut.take::<WithChildren<B, I>>() else {
+            #[cfg(debug_assertions)]
+            panic!("WithChild component not found");
+
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+
+        for child_bundle in with_children_component.0 {
+            let child_entity = world.spawn(child_bundle).id();
+            world.entity_mut(self.parent_entity).add_child(child_entity);
+        }
     }
 }
 
