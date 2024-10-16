@@ -166,6 +166,7 @@ fn with_children_hook<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'stat
     entity: Entity,
     _component_id: ComponentId,
 ) {
+    // Component hooks can't perform structural changes, so we need to rely on commands.
     world.commands().add(WithChildrenCommand::<B, I, N> {
         parent_entity: entity,
         _phantom: PhantomData,
