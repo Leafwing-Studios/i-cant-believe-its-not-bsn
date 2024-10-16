@@ -13,6 +13,8 @@ use bevy_hierarchy::BuildWorldChildren;
 ///
 /// This component will be removed from the entity, as its data is moved into the child entity.
 ///
+/// The const generic parameter `N` allows for multiple `WithChild` components of the same bundle type.
+///
 /// You can add multiple children in this way, if and only if their bundle types are distinct.
 /// See [`WithChildren`] for a version that supports adding multiple children of the same type.
 ///
@@ -38,38 +40,38 @@ use bevy_hierarchy::BuildWorldChildren;
 /// }
 /// ```
 #[derive(Debug, Clone, Default)]
-pub struct WithChild<B: Bundle>(pub B);
+pub struct WithChildN<B: Bundle, const N: u8>(pub B);
 
-impl<B: Bundle> Component for WithChild<B> {
+impl<B: Bundle, const N: u8> Component for WithChildN<B, N> {
     /// This is a sparse set component as it's only ever added and removed, never iterated over.
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
 
     fn register_component_hooks(hooks: &mut ComponentHooks) {
-        hooks.on_add(with_child_hook::<B>);
+        hooks.on_add(with_child_hook::<B, N>);
     }
 }
 
 /// A hook that runs whenever [`WithChild`] is added to an entity.
 ///
 /// Generates a [`WithChildCommand`].
-fn with_child_hook<B: Bundle>(
+fn with_child_hook<B: Bundle, const N: u8>(
     mut world: DeferredWorld<'_>,
     entity: Entity,
     _component_id: ComponentId,
 ) {
     // Component hooks can't perform structural changes, so we need to rely on commands.
-    world.commands().add(WithChildCommand {
+    world.commands().add(WithChildCommand::<B, N> {
         parent_entity: entity,
-        _phantom: PhantomData::<B>,
+        _phantom: PhantomData,
     });
 }
 
-struct WithChildCommand<B> {
+struct WithChildCommand<B, const N: u8> {
     parent_entity: Entity,
     _phantom: PhantomData<B>,
 }
 
-impl<B: Bundle> Command for WithChildCommand<B> {
+impl<B: Bundle, const N: u8> Command for WithChildCommand<B, N> {
     fn apply(self, world: &mut World) {
         let Some(mut entity_mut) = world.get_entity_mut(self.parent_entity) else {
             #[cfg(debug_assertions)]
@@ -79,7 +81,7 @@ impl<B: Bundle> Command for WithChildCommand<B> {
             return;
         };
 
-        let Some(with_child_component) = entity_mut.take::<WithChild<B>>() else {
+        let Some(with_child_component) = entity_mut.take::<WithChildN<B, N>>() else {
             #[cfg(debug_assertions)]
             panic!("WithChild component not found");
 
@@ -97,6 +99,8 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 /// This component will be removed from the entity immediately upon being spawned,
 /// and the supplied iterator will be iterated to completion to generate the data needed for each child.
 /// See [`WithChild`] for a more convenient API when adding only one child (or multiple children with distinct bundle types).
+///
+/// The const generic parameter `N` allows for multiple `WithChildren` components of the same bundle type.
 ///
 /// Under the hood, this is done using component lifecycle hooks.
 ///
@@ -141,41 +145,40 @@ impl<B: Bundle> Command for WithChildCommand<B> {
 /// }
 ///```
 #[derive(Debug, Clone, Default)]
-pub struct WithChildren<B: Bundle, I: IntoIterator<Item = B>>(pub I);
+pub struct WithChildrenN<B: Bundle, I: IntoIterator<Item = B>, const N: u8>(pub I);
 
-impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Component
-    for WithChildren<B, I>
+impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8> Component
+    for WithChildrenN<B, I, N>
 {
     /// This is a sparse set component as it's only ever added and removed, never iterated over.
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
 
     fn register_component_hooks(hooks: &mut ComponentHooks) {
-        hooks.on_add(with_children_hook::<B, I>);
+        hooks.on_add(with_children_hook::<B, I, N>);
     }
 }
 
 /// A hook that runs whenever [`WithChildren`] is added to an entity.
 ///
 /// Generates a [`WithChildrenCommand`].
-fn with_children_hook<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
+fn with_children_hook<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8>(
     mut world: DeferredWorld<'_>,
     entity: Entity,
     _component_id: ComponentId,
 ) {
-    // Component hooks can't perform structural changes, so we need to rely on commands.
-    world.commands().add(WithChildrenCommand {
+    world.commands().add(WithChildrenCommand::<B, I, N> {
         parent_entity: entity,
-        _phantom: PhantomData::<(B, I)>,
+        _phantom: PhantomData,
     });
 }
 
-struct WithChildrenCommand<B, I> {
+struct WithChildrenCommand<B, I, const N: u8> {
     parent_entity: Entity,
     _phantom: PhantomData<(B, I)>,
 }
 
-impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Command
-    for WithChildrenCommand<B, I>
+impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8> Command
+    for WithChildrenCommand<B, I, N>
 {
     fn apply(self, world: &mut World) {
         let Some(mut entity_mut) = world.get_entity_mut(self.parent_entity) else {
@@ -186,9 +189,9 @@ impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Command
             return;
         };
 
-        let Some(with_children_component) = entity_mut.take::<WithChildren<B, I>>() else {
+        let Some(with_children_component) = entity_mut.take::<WithChildrenN<B, I, N>>() else {
             #[cfg(debug_assertions)]
-            panic!("WithChild component not found");
+            panic!("WithChildren component not found");
 
             #[cfg(not(debug_assertions))]
             return;
@@ -199,6 +202,27 @@ impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static> Command
             world.entity_mut(self.parent_entity).add_child(child_entity);
         }
     }
+}
+
+pub type WithChild<B> = WithChildN<B, 0>;
+pub type WithChildren<B, I> = WithChildrenN<B, I, 0>;
+
+pub fn spawn_child<B: Bundle>(bundle: B) -> WithChild<B> {
+    WithChildN(bundle)
+}
+
+pub fn spawn_children<B: Bundle, I: IntoIterator<Item = B>>(iter: I) -> WithChildren<B, I> {
+    WithChildrenN(iter)
+}
+
+pub fn spawn_repeated_child<B: Bundle, const N: u8>(bundle: B) -> WithChildN<B, N> {
+    WithChildN(bundle)
+}
+
+pub fn spawn_repeated_children<B: Bundle, I: IntoIterator<Item = B>, const N: u8>(
+    iter: I,
+) -> WithChildrenN<B, I, N> {
+    WithChildrenN(iter)
 }
 
 #[cfg(test)]
@@ -230,7 +254,7 @@ mod tests {
     fn with_child() {
         let mut world = World::default();
 
-        let parent = world.spawn(WithChild((A, B(3)))).id();
+        let parent = world.spawn(spawn_child((A, B(3)))).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -250,7 +274,7 @@ mod tests {
     fn with_children_vec() {
         let mut world = World::default();
 
-        let parent = world.spawn(WithChildren(vec![B(0), B(1), B(2)])).id();
+        let parent = world.spawn(spawn_children(vec![B(0), B(1), B(2)])).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -269,7 +293,7 @@ mod tests {
     fn with_child_closure() {
         let mut world = World::default();
 
-        let parent = world.spawn(WithChildren((0..7).map(|i| B(i as u8)))).id();
+        let parent = world.spawn(spawn_children((0..7).map(|i| B(i as u8)))).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -288,7 +312,7 @@ mod tests {
     fn with_distinct_children() {
         let mut world = World::default();
 
-        let parent = world.spawn((WithChild(A), WithChild(B(1)))).id();
+        let parent = world.spawn((spawn_child(A), spawn_child(B(1)))).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -298,7 +322,7 @@ mod tests {
         assert_eq!(world.get::<B>(children[1]), Some(&B(1)));
 
         // Ordering should matter
-        let parent = world.spawn((WithChild(B(1)), WithChild(A))).id();
+        let parent = world.spawn((spawn_child(B(1)), spawn_child(A))).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -312,7 +336,7 @@ mod tests {
     fn grandchildren() {
         let mut world = World::default();
 
-        let parent = world.spawn(WithChild((A, WithChild((A, B(3)))))).id();
+        let parent = world.spawn(spawn_child((A, spawn_child((A, B(3)))))).id();
         // FIXME: this should not be needed!
         world.flush();
 
@@ -337,7 +361,7 @@ mod tests {
         let parent = world
             .spawn(HierarchicalBundle {
                 a: A,
-                child: WithChild(ABBundle { a: A, b: B(17) }),
+                child: spawn_child(ABBundle { a: A, b: B(17) }),
             })
             .id();
 
@@ -359,7 +383,7 @@ mod tests {
     #[test]
     fn command_form() {
         fn spawn_with_child(mut commands: Commands) -> Entity {
-            commands.spawn((A, WithChild(B(5)))).id()
+            commands.spawn((A, spawn_child(B(5)))).id()
         }
 
         let mut world = World::new();
