@@ -11,6 +11,46 @@ use bevy_ecs::{
 /// Under the hood, this is done using component lifecycle hooks.
 /// The component is removed from the entity when it is added, and contents are extracted.
 /// If the inner value is [`Some`], the contents are then readded to the entity.
+///
+/// # Example
+///
+/// ```rust
+/// use bevy_ecs::prelude::*;
+/// use bevy_ecs::system::RunSystemOnce;
+/// use i_cant_believe_its_not_bsn::Maybe;
+
+/// #[derive(Component)]
+/// struct A;
+///
+/// #[derive(Bundle)]
+/// struct TestBundle {
+///    maybe_a: Maybe<A>,
+/// }
+///
+/// let mut world = World::new();
+///
+/// let entity_with_component = world.run_system_once(|mut commands: Commands| -> Entity {
+///     commands
+///         .spawn(TestBundle {
+///             maybe_a: Maybe::new(A),
+///         })
+///         .id()
+/// });
+/// let entity_ref = world.get_entity(entity_with_component).unwrap();
+/// assert!(entity_ref.contains::<A>());
+/// assert!(!entity_ref.contains::<Maybe<A>>());
+///
+/// let entity_without_component = world.run_system_once(|mut commands: Commands| -> Entity {
+///     commands
+///         .spawn(TestBundle {
+///             maybe_a: Maybe::NONE,
+///         })
+///         .id()
+/// });
+/// let entity_ref = world.get_entity(entity_without_component).unwrap();
+/// assert!(!entity_ref.contains::<A>());
+/// assert!(!entity_ref.contains::<Maybe<A>>());
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Maybe<B: Bundle>(pub Option<B>);
 
@@ -82,5 +122,81 @@ impl<B: Bundle> Command for MaybeCommand<B> {
         if let Some(bundle) = maybe_component.into_inner() {
             entity_mut.insert(bundle);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Component)]
+    struct A;
+
+    #[derive(Bundle)]
+    struct TestBundle {
+        maybe_a: Maybe<A>,
+    }
+
+    #[test]
+    fn maybe_some() {
+        let mut world = World::new();
+        let entity = world
+            .spawn(TestBundle {
+                maybe_a: Maybe::new(A),
+            })
+            .id();
+
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(world.get::<A>(entity).is_some());
+        assert!(world.get::<Maybe<A>>(entity).is_none());
+    }
+
+    #[test]
+    fn maybe_none() {
+        let mut world = World::new();
+        let entity = world
+            .spawn(TestBundle {
+                maybe_a: Maybe::NONE,
+            })
+            .id();
+
+        // FIXME: this should not be needed!
+        world.flush();
+
+        assert!(world.get::<A>(entity).is_none());
+        assert!(world.get::<Maybe<A>>(entity).is_none());
+    }
+
+    #[test]
+    fn maybe_system() {
+        use bevy_ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+
+        let entity_with_component = world.run_system_once(|mut commands: Commands| -> Entity {
+            commands
+                .spawn(TestBundle {
+                    maybe_a: Maybe::new(A),
+                })
+                .id()
+        });
+
+        let entity_ref = world.get_entity(entity_with_component).unwrap();
+        assert!(entity_ref.contains::<A>());
+        assert!(!entity_ref.contains::<Maybe<A>>());
+
+        let entity_without_component = world.run_system_once(|mut commands: Commands| -> Entity {
+            commands
+                .spawn(TestBundle {
+                    maybe_a: Maybe::NONE,
+                })
+                .id()
+        });
+
+        let entity_ref = world.get_entity(entity_without_component).unwrap();
+        assert!(!entity_ref.contains::<A>());
+        assert!(!entity_ref.contains::<Maybe<A>>());
     }
 }
