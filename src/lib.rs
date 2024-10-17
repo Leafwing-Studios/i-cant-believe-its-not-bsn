@@ -40,9 +40,9 @@ use bevy_hierarchy::BuildWorldChildren;
 /// }
 /// ```
 #[derive(Debug, Clone, Default)]
-pub struct WithChildN<B: Bundle, const N: u8>(pub B);
+pub struct WithChild<B: Bundle, const N: u8 = 0>(pub B);
 
-impl<B: Bundle, const N: u8> Component for WithChildN<B, N> {
+impl<B: Bundle, const N: u8> Component for WithChild<B, N> {
     /// This is a sparse set component as it's only ever added and removed, never iterated over.
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
 
@@ -81,7 +81,7 @@ impl<B: Bundle, const N: u8> Command for WithChildCommand<B, N> {
             return;
         };
 
-        let Some(with_child_component) = entity_mut.take::<WithChildN<B, N>>() else {
+        let Some(with_child_component) = entity_mut.take::<WithChild<B, N>>() else {
             #[cfg(debug_assertions)]
             panic!("WithChild component not found");
 
@@ -145,10 +145,10 @@ impl<B: Bundle, const N: u8> Command for WithChildCommand<B, N> {
 /// }
 ///```
 #[derive(Debug, Clone, Default)]
-pub struct WithChildrenN<B: Bundle, I: IntoIterator<Item = B>, const N: u8>(pub I);
+pub struct WithChildren<B: Bundle, I: IntoIterator<Item = B>, const N: u8 = 0>(pub I);
 
 impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8> Component
-    for WithChildrenN<B, I, N>
+    for WithChildren<B, I, N>
 {
     /// This is a sparse set component as it's only ever added and removed, never iterated over.
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
@@ -190,7 +190,7 @@ impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8> 
             return;
         };
 
-        let Some(with_children_component) = entity_mut.take::<WithChildrenN<B, I, N>>() else {
+        let Some(with_children_component) = entity_mut.take::<WithChildren<B, I, N>>() else {
             #[cfg(debug_assertions)]
             panic!("WithChildren component not found");
 
@@ -205,25 +205,16 @@ impl<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static, const N: u8> 
     }
 }
 
-pub type WithChild<B> = WithChildN<B, 0>;
-pub type WithChildren<B, I> = WithChildrenN<B, I, 0>;
-
 pub fn spawn_child<B: Bundle>(bundle: B) -> WithChild<B> {
-    WithChildN(bundle)
+    WithChild(bundle)
 }
 
 pub fn spawn_children<B: Bundle, I: IntoIterator<Item = B>>(iter: I) -> WithChildren<B, I> {
-    WithChildrenN(iter)
+    WithChildren(iter)
 }
 
-pub fn spawn_repeated_child<B: Bundle, const N: u8>(bundle: B) -> WithChildN<B, N> {
-    WithChildN(bundle)
-}
-
-pub fn spawn_repeated_children<B: Bundle, I: IntoIterator<Item = B>, const N: u8>(
-    iter: I,
-) -> WithChildrenN<B, I, N> {
-    WithChildrenN(iter)
+pub fn spawn_repeated_child<B: Bundle, const N: u8>(bundle: B) -> WithChild<B, N> {
+    WithChild(bundle)
 }
 
 #[cfg(test)]
