@@ -22,7 +22,11 @@ fn sheep_plugin(app: &mut App) {
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
+    commands.spawn(UiRoot);
 }
+
+#[derive(Component)]
+struct UiRoot;
 
 #[derive(Component)]
 struct Sheep;
@@ -34,35 +38,32 @@ enum Button {
 }
 
 // A query that pulls data from the ecs and then updates it using a template.
-fn sheep_system(mut commands: Commands, sheep: Query<&Sheep>) {
+fn sheep_system(mut commands: Commands, sheep: Query<&Sheep>, root: Single<Entity, With<UiRoot>>) {
     let num_sheep = sheep.iter().len();
 
-    let template = template!(
-        {
-            Node {
-                position_type: PositionType::Absolute,
-                bottom: Val::Px(5.0),
-                right: Val::Px(5.0),
-                ..default()
-            }
-        } [
+    let template = template! {
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(5.0),
+            right: Val::Px(5.0),
+            ..default()
+        } => [
             @{ counter(num_sheep, "sheep", Button::Increment, Button::Decrement) };
         ];
-    );
+    };
 
-    commands.build(template);
+    commands.entity(*root).build(template);
 }
 
 // A function that returns an ecs template.
 fn counter<T: Component>(num: usize, name: &str, inc: T, dec: T) -> Template {
     template! {
-        { Text::new("You have ") }
-        [
-            { TextSpan::new(format!("{num}")) };
-            { TextSpan::new(format!(" {name}!")) };
+        Text::new("You have ") => [
+            TextSpan::new(format!("{num}"));
+            TextSpan::new(format!(" {name}!"));
         ];
-        {( Button, Text::new("Increase"), TextColor(css::GREEN.into()), inc, visible_if(num < 100) )};
-        {( Button, Text::new("Decrease"), TextColor(css::RED.into()), dec, visible_if(num > 0) )};
+        ( Button, Text::new("Increase"), TextColor(css::GREEN.into()), inc, visible_if(num < 100) );
+        ( Button, Text::new("Decrease"), TextColor(css::RED.into()), dec, visible_if(num > 0) );
     }
 }
 
